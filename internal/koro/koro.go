@@ -106,7 +106,12 @@ func (k *Koro) canMove(l *level.Level, dir Direction) bool {
 }
 
 func (k *Koro) isAlignedFor(dir Direction, tileSize float64) bool {
-	const threshold = 0.2
+	const minThreshold = 0.8
+	threshold := math.Max(minThreshold, tileSize*0.2)
+	if threshold > tileSize/2 {
+		threshold = tileSize / 2
+	}
+
 	remX := math.Mod(k.X, tileSize)
 	remY := math.Mod(k.Y, tileSize)
 	if remX < 0 {
