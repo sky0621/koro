@@ -86,16 +86,22 @@ func (k *Koro) applyIntent(l *level.Level, tileSize float64) {
 		return
 	}
 
-	if k.intent == k.dir {
+	if k.intent != k.dir {
+		k.snapAxisForDirection(tileSize, k.intent)
+	}
+
+	if k.canMove(l, k.intent) {
+		k.dir = k.intent
 		return
 	}
 
-	if !k.canMove(l, k.intent) {
+	// If the intended direction is blocked but Koro can still
+	// keep going straight, let it continue.
+	if k.canMove(l, k.dir) {
 		return
 	}
 
-	k.snapAxisForDirection(tileSize, k.intent)
-	k.dir = k.intent
+	k.dir = DirNone
 }
 
 func (k *Koro) canMove(l *level.Level, dir Direction) bool {

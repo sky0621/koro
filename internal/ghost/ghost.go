@@ -49,6 +49,8 @@ func (g *Ghost) Update(l *level.Level, targetX, targetY float64) {
 
 	if dir := g.nextDirection(l, targetX, targetY); dir != koro.DirNone {
 		g.body.SetIntentDirection(dir)
+	} else if current := g.body.Direction(); current != koro.DirNone {
+		g.body.SetIntentDirection(current)
 	}
 
 	g.body.Update(l)
@@ -96,14 +98,21 @@ func (g *Ghost) Body() *koro.Koro {
 }
 
 func (g *Ghost) nextDirection(l *level.Level, targetX, targetY float64) koro.Direction {
-	if !g.atIntersection(l) {
+	current := g.body.Direction()
+	needDecision := current == koro.DirNone || !g.body.CanMove(l, current) || g.atIntersection(l)
+	if !needDecision {
 		return koro.DirNone
 	}
 
 	options := g.availableDirections(l)
 	if len(options) == 0 {
+		if current != koro.DirNone && g.body.CanMove(l, current) {
+			return current
+		}
 		return koro.DirNone
 	}
+
+	g.shuffleDirections(options)
 
 	if g.IsFrightened() {
 		return options[g.rng.Intn(len(options))]
@@ -125,11 +134,17 @@ func (g *Ghost) nextDirection(l *level.Level, targetX, targetY float64) koro.Dir
 		}
 	}
 
-	if len(options) > 1 && g.rng.Float64() < 0.2 {
+	if len(options) > 1 && g.rng.Float64() < 0.25 {
 		return options[g.rng.Intn(len(options))]
 	}
 
 	return bestDir
+}
+
+func (g *Ghost) shuffleDirections(dirs []koro.Direction) {
+	g.rng.Shuffle(len(dirs), func(i, j int) {
+		dirs[i], dirs[j] = dirs[j], dirs[i]
+	})
 }
 
 func (g *Ghost) atIntersection(l *level.Level) bool {
@@ -143,11 +158,12 @@ func (g *Ghost) atIntersection(l *level.Level) bool {
 }
 
 func (g *Ghost) availableDirections(l *level.Level) []koro.Direction {
-	all := []koro.Direction{koro.DirUp, koro.DirDown, koro.DirLeft, koro.DirRight}
 	current := g.body.Direction()
 	opposite := oppositeDirection(current)
-	valid := make([]koro.Direction, 0, len(all))
-	for _, dir := range all {
+
+	dirs := []koro.Direction{koro.DirUp, koro.DirDown, koro.DirLeft, koro.DirRight}
+	valid := dirs[:0]
+	for _, dir := range dirs {
 		if dir == opposite {
 			continue
 		}
