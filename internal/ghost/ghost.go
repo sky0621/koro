@@ -10,6 +10,8 @@ import (
 	"github.com/sky0621/koro/internal/level"
 )
 
+const randomTurnChance = 0.45
+
 // Ghost encapsulates enemy behaviour with simple chase logic.
 type Ghost struct {
 	body            *koro.Koro
@@ -25,7 +27,7 @@ type Ghost struct {
 func New(x, y, tileSize float64, clr color.Color) *Ghost {
 	body := koro.New(x, y, tileSize)
 	body.SetSpeed(1.35)
-	return &Ghost{
+	g := &Ghost{
 		body:         body,
 		baseSpeed:    body.Speed,
 		primaryColor: clr,
@@ -33,6 +35,8 @@ func New(x, y, tileSize float64, clr color.Color) *Ghost {
 		spawnY:       y,
 		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
+	g.RespawnAt(x, y)
+	return g
 }
 
 // Update advances the ghost AI and movement.
@@ -78,7 +82,15 @@ func (g *Ghost) IsFrightened() bool {
 
 // Reset moves the ghost back to its spawn point.
 func (g *Ghost) Reset() {
-	g.body.SetPosition(g.spawnX, g.spawnY)
+	g.RespawnAt(g.spawnX, g.spawnY)
+}
+
+// RespawnAt teleports the ghost to a new spawn position.
+func (g *Ghost) RespawnAt(x, y float64) {
+	g.spawnX = x
+	g.spawnY = y
+	g.body.SetPosition(x, y)
+	g.body.SetIntentDirection(koro.DirNone)
 	g.frightenedTimer = 0
 }
 
@@ -134,7 +146,11 @@ func (g *Ghost) nextDirection(l *level.Level, targetX, targetY float64) koro.Dir
 		}
 	}
 
-	if len(options) > 1 && g.rng.Float64() < 0.25 {
+	randomChance := randomTurnChance
+	if g.IsFrightened() {
+		randomChance = 0.8
+	}
+	if g.rng.Float64() < randomChance {
 		return options[g.rng.Intn(len(options))]
 	}
 

@@ -264,7 +264,7 @@ func (g *Game) checkGhostCollisions() {
 		if math.Hypot(px-cx, py-cy) <= playerRadius+ghostRadius {
 			if gh.IsFrightened() {
 				g.score += ghostScore
-				gh.Reset()
+				g.respawnGhostRandom(gh)
 			} else {
 				g.loseLife()
 			}
@@ -287,9 +287,7 @@ func (g *Game) loseLife() {
 
 func (g *Game) resetActorPositions() {
 	g.player.SetPosition(g.playerSpawnX, g.playerSpawnY)
-	for _, gh := range g.ghosts {
-		gh.Reset()
-	}
+	g.respawnAllGhosts()
 }
 
 func (g *Game) resetLevel(keepScore bool) {
@@ -305,23 +303,76 @@ func (g *Game) resetLevel(keepScore bool) {
 }
 
 func (g *Game) randomSpawnPositions(count int) []level.GridPos {
-	if len(g.walkable) == 0 {
-		return make([]level.GridPos, count)
+	excludes := map[level.GridPos]struct{}{}
+	playerGrid := g.level.GridForPixel(g.playerSpawnX+g.player.Size/2, g.playerSpawnY+g.player.Size/2)
+	excludes[playerGrid] = struct{}{}
+	result := make([]level.GridPos, 0, count)
+	for len(result) < count {
+		pos := g.randomSpawnPosition(excludes)
+		result = append(result, pos)
+		excludes[pos] = struct{}{}
+		if len(excludes) == len(g.walkable) {
+			break
+		}
 	}
-	indices := make([]int, len(g.walkable))
-	for i := range g.walkable {
-		indices[i] = i
-	}
-	g.rng.Shuffle(len(indices), func(i, j int) {
-		indices[i], indices[j] = indices[j], indices[i]
-	})
-
-	result := make([]level.GridPos, count)
-	for i := 0; i < count; i++ {
-		idx := indices[i%len(indices)]
-		result[i] = g.walkable[idx]
+	for len(result) < count {
+		result = append(result, g.walkable[g.rng.Intn(len(g.walkable))])
 	}
 	return result
+}
+
+func (g *Game) randomSpawnPosition(excludes map[level.GridPos]struct{}) level.GridPos {
+	if len(g.walkable) == 0 {
+		return level.GridPos{}
+	}
+	start := g.rng.Intn(len(g.walkable))
+	for i := 0; i < len(g.walkable); i++ {
+		idx := (start + i) % len(g.walkable)
+		pos := g.walkable[idx]
+		if _, blocked := excludes[pos]; !blocked {
+			return pos
+		}
+	}
+	return g.walkable[start]
+}
+
+func (g *Game) respawnGhostRandom(gh *ghost.Ghost) {
+	excludes := g.occupiedPositions(gh)
+	excludes[g.gridForGhost(gh)] = struct{}{}
+	pos := g.randomSpawnPosition(excludes)
+	g.placeGhost(gh, pos)
+}
+
+func (g *Game) respawnAllGhosts() {
+	for _, gh := range g.ghosts {
+		g.respawnGhostRandom(gh)
+	}
+}
+
+func (g *Game) occupiedPositions(except *ghost.Ghost) map[level.GridPos]struct{} {
+	excludes := map[level.GridPos]struct{}{}
+	px, py := g.player.Center()
+	excludes[g.level.GridForPixel(px, py)] = struct{}{}
+	for _, gh := range g.ghosts {
+		if gh == except {
+			continue
+		}
+		excludes[g.gridForGhost(gh)] = struct{}{}
+	}
+	return excludes
+}
+
+func (g *Game) placeGhost(gh *ghost.Ghost, pos level.GridPos) {
+	x := float64(pos.Col) * g.tileSize
+	y := float64(pos.Row) * g.tileSize
+	gh.RespawnAt(x, y)
+}
+
+func (g *Game) gridForGhost(gh *ghost.Ghost) level.GridPos {
+	x, y := gh.Position()
+	cx := x + gh.Size()/2
+	cy := y + gh.Size()/2
+	return g.level.GridForPixel(cx, cy)
 }
 
 func main() {
