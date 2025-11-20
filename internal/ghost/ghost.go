@@ -10,7 +10,11 @@ import (
 	"github.com/sky0621/koro/internal/level"
 )
 
-const randomTurnChance = 0.45
+const (
+	randomChangeChance   = 0.4
+	randomChangeFrighten = 0.2
+	visitPenaltyWeight   = 5.0
+)
 
 // Ghost encapsulates enemy behaviour with simple chase logic.
 type Ghost struct {
@@ -21,6 +25,7 @@ type Ghost struct {
 	rng             *rand.Rand
 	spawnX          float64
 	spawnY          float64
+	visited         map[level.GridPos]int
 }
 
 // New creates a new ghost positioned at (x, y).
@@ -34,6 +39,7 @@ func New(x, y, tileSize float64, clr color.Color) *Ghost {
 		spawnX:       x,
 		spawnY:       y,
 		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
+		visited:      map[level.GridPos]int{},
 	}
 	g.RespawnAt(x, y)
 	return g
@@ -58,6 +64,7 @@ func (g *Ghost) Update(l *level.Level, targetX, targetY float64) {
 	}
 
 	g.body.Update(l)
+	g.recordVisit(l)
 }
 
 // Color returns the draw color according to current state.
@@ -92,6 +99,7 @@ func (g *Ghost) RespawnAt(x, y float64) {
 	g.body.SetPosition(x, y)
 	g.body.SetIntentDirection(koro.DirNone)
 	g.frightenedTimer = 0
+	g.visited = map[level.GridPos]int{}
 }
 
 // Position returns the current location.
@@ -111,7 +119,12 @@ func (g *Ghost) Body() *koro.Koro {
 
 func (g *Ghost) nextDirection(l *level.Level, targetX, targetY float64) koro.Direction {
 	current := g.body.Direction()
-	needDecision := current == koro.DirNone || !g.body.CanMove(l, current) || g.atIntersection(l)
+	changeChance := randomChangeChance
+	if g.IsFrightened() {
+		changeChance = randomChangeFrighten
+	}
+	randomRecalc := changeChance > 0 && g.rng.Float64() < changeChance
+	needDecision := current == koro.DirNone || !g.body.CanMove(l, current) || g.atIntersection(l) || randomRecalc
 	if !needDecision {
 		return koro.DirNone
 	}
@@ -133,25 +146,20 @@ func (g *Ghost) nextDirection(l *level.Level, targetX, targetY float64) koro.Dir
 	cx, cy := g.body.Center()
 	tileSize := float64(l.TileSize)
 	bestDir := options[0]
-	bestDist := math.MaxFloat64
+	bestScore := math.MaxFloat64
 
 	for _, dir := range options {
 		dx, dy := dir.Delta()
 		nextX := cx + float64(dx)*tileSize
 		nextY := cy + float64(dy)*tileSize
 		dist := math.Hypot(targetX-nextX, targetY-nextY)
-		if dist < bestDist {
-			bestDist = dist
+		grid := g.gridAhead(l, dir)
+		visitScore := float64(g.visited[grid]) * visitPenaltyWeight
+		score := dist + visitScore
+		if score < bestScore {
+			bestScore = score
 			bestDir = dir
 		}
-	}
-
-	randomChance := randomTurnChance
-	if g.IsFrightened() {
-		randomChance = 0.8
-	}
-	if g.rng.Float64() < randomChance {
-		return options[g.rng.Intn(len(options))]
 	}
 
 	return bestDir
@@ -191,6 +199,20 @@ func (g *Ghost) availableDirections(l *level.Level) []koro.Direction {
 		return []koro.Direction{opposite}
 	}
 	return valid
+}
+
+func (g *Ghost) recordVisit(l *level.Level) {
+	cx, cy := g.body.Center()
+	grid := l.GridForPixel(cx, cy)
+	g.visited[grid]++
+}
+
+func (g *Ghost) gridAhead(l *level.Level, dir koro.Direction) level.GridPos {
+	cx, cy := g.body.Center()
+	dx, dy := dir.Delta()
+	nextX := cx + float64(dx)*float64(l.TileSize)
+	nextY := cy + float64(dy)*float64(l.TileSize)
+	return l.GridForPixel(nextX, nextY)
 }
 
 func oppositeDirection(dir koro.Direction) koro.Direction {
