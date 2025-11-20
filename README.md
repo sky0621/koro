@@ -12,10 +12,7 @@ Pac-Man inspired prototype built with Go + Ebiten. The current gameplay already 
 go run ./cmd/game
 ```
 
-Controls:
-
-- Arrow keys / WASD on desktop.
-- Swipe in any direction on touch devices (Ebiten handles mapping for mobile builds).
+Controls: Arrow keys only.
 
 ## Mobile builds
 
