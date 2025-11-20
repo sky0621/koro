@@ -17,7 +17,7 @@ const (
 	DirDown
 )
 
-func (d Direction) delta() (int, int) {
+func (d Direction) Delta() (int, int) {
 	switch d {
 	case DirLeft:
 		return -1, 0
@@ -69,7 +69,7 @@ func (k *Koro) Update(l *level.Level) {
 	}
 
 	if k.canMove(l, k.dir) {
-		dx, dy := k.dir.delta()
+		dx, dy := k.dir.Delta()
 		k.X += float64(dx) * k.Speed
 		k.Y += float64(dy) * k.Speed
 		k.handleWarp(l)
@@ -99,10 +99,15 @@ func (k *Koro) tryApplyQueuedDirection(l *level.Level, tileSize float64) {
 }
 
 func (k *Koro) canMove(l *level.Level, dir Direction) bool {
-	dx, dy := dir.delta()
+	dx, dy := dir.Delta()
 	nextX := k.X + float64(dx)*k.Speed
 	nextY := k.Y + float64(dy)*k.Speed
 	return !l.Collides(nextX, nextY, k.Size)
+}
+
+// CanMove reports whether moving in the provided direction would collide.
+func (k *Koro) CanMove(l *level.Level, dir Direction) bool {
+	return k.canMove(l, dir)
 }
 
 func (k *Koro) isAlignedFor(dir Direction, tileSize float64) bool {
@@ -147,4 +152,27 @@ func (k *Koro) handleWarp(l *level.Level) {
 
 	k.X = float64(target.Col * l.TileSize)
 	k.Y = float64(target.Row * l.TileSize)
+}
+
+// Direction returns the current heading.
+func (k *Koro) Direction() Direction {
+	return k.dir
+}
+
+// SetPosition teleports Koro to the provided coordinates and clears direction state.
+func (k *Koro) SetPosition(x, y float64) {
+	k.X = x
+	k.Y = y
+	k.dir = DirNone
+	k.next = DirNone
+}
+
+// Center returns the current center point coordinates.
+func (k *Koro) Center() (float64, float64) {
+	return k.X + k.Size/2, k.Y + k.Size/2
+}
+
+// SetSpeed adjusts movement speed.
+func (k *Koro) SetSpeed(speed float64) {
+	k.Speed = speed
 }

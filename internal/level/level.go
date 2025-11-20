@@ -14,6 +14,15 @@ const (
 	TileWarp
 )
 
+// PelletType represents collectible pellet variants.
+type PelletType int
+
+const (
+	PelletNone PelletType = iota
+	PelletSmall
+	PelletPower
+)
+
 // GridPos holds column/row coordinates in the tile map.
 type GridPos struct {
 	Col int
@@ -22,18 +31,20 @@ type GridPos struct {
 
 // Level contains tile data and warp links for a stage.
 type Level struct {
-	Tiles       [][]TileType
-	TileSize    int
-	Width       int
-	Height      int
-	warpTargets map[GridPos]GridPos
+	Tiles        [][]TileType
+	TileSize     int
+	Width        int
+	Height       int
+	warpTargets  map[GridPos]GridPos
+	pellets      [][]PelletType
+	totalPellets int
 }
 
 // DefaultLevel returns the built-in stage used for early development.
 func DefaultLevel() *Level {
 	layout := []string{
 		"###############",
-		"#.............#",
+		"#o...........o#",
 		"#.###.###.###.#",
 		"#.#.........#.#",
 		"#.#.###.###.#.#",
@@ -43,11 +54,11 @@ func DefaultLevel() *Level {
 		"#.#.#.###.#.#.#",
 		"#.#.#.....#.#.#",
 		"#.#.#######.#.#",
-		"#.............#",
+		"#.....o.o.....#",
 		"###.###.#.###.#",
-		"#.....#.#.....#",
-		"#.###.#.#.###.#",
-		"#.............#",
+		"#.....# #.....#",
+		"#.###.# #.###.#",
+		"#.....o.o.....#",
 		"#.###########.#",
 		"#.............#",
 		"#.###########.#",
@@ -71,6 +82,7 @@ func New(layout []string, tileSize int) (*Level, error) {
 	width := len(layout[0])
 	tiles := make([][]TileType, height)
 	warpEntrances := []GridPos{}
+	pellets := make([][]PelletType, height)
 
 	for rowIdx, row := range layout {
 		if len(row) != width {
@@ -78,11 +90,18 @@ func New(layout []string, tileSize int) (*Level, error) {
 		}
 
 		tiles[rowIdx] = make([]TileType, width)
+		pellets[rowIdx] = make([]PelletType, width)
 		for colIdx, ch := range row {
 			switch ch {
 			case '#':
 				tiles[rowIdx][colIdx] = TileWall
 			case '.':
+				tiles[rowIdx][colIdx] = TilePath
+				pellets[rowIdx][colIdx] = PelletSmall
+			case 'o':
+				tiles[rowIdx][colIdx] = TilePath
+				pellets[rowIdx][colIdx] = PelletPower
+			case ' ':
 				tiles[rowIdx][colIdx] = TilePath
 			case 'W':
 				tiles[rowIdx][colIdx] = TileWarp
@@ -104,12 +123,23 @@ func New(layout []string, tileSize int) (*Level, error) {
 		warpTargets[b] = a
 	}
 
+	totalPellets := 0
+	for _, row := range pellets {
+		for _, p := range row {
+			if p != PelletNone {
+				totalPellets++
+			}
+		}
+	}
+
 	return &Level{
-		Tiles:       tiles,
-		TileSize:    tileSize,
-		Width:       width,
-		Height:      height,
-		warpTargets: warpTargets,
+		Tiles:        tiles,
+		TileSize:     tileSize,
+		Width:        width,
+		Height:       height,
+		warpTargets:  warpTargets,
+		pellets:      pellets,
+		totalPellets: totalPellets,
 	}, nil
 }
 
@@ -165,4 +195,30 @@ func (l *Level) Collides(x, y, size float64) bool {
 	}
 
 	return false
+}
+
+// PelletAt returns the pellet type at the given grid position.
+func (l *Level) PelletAt(col, row int) PelletType {
+	if row < 0 || row >= l.Height || col < 0 || col >= l.Width {
+		return PelletNone
+	}
+	return l.pellets[row][col]
+}
+
+// ConsumePellet removes and returns the pellet type at the given grid position.
+func (l *Level) ConsumePellet(col, row int) PelletType {
+	if row < 0 || row >= l.Height || col < 0 || col >= l.Width {
+		return PelletNone
+	}
+	p := l.pellets[row][col]
+	if p != PelletNone {
+		l.pellets[row][col] = PelletNone
+		l.totalPellets--
+	}
+	return p
+}
+
+// RemainingPellets returns the number of pellets left on the map.
+func (l *Level) RemainingPellets() int {
+	return l.totalPellets
 }
