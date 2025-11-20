@@ -48,7 +48,7 @@ func (g *Ghost) Update(l *level.Level, targetX, targetY float64) {
 	}
 
 	if dir := g.nextDirection(l, targetX, targetY); dir != koro.DirNone {
-		g.body.QueueDirection(dir)
+		g.body.SetIntentDirection(dir)
 	}
 
 	g.body.Update(l)

@@ -6,7 +6,7 @@ import (
 	"github.com/sky0621/koro/internal/koro"
 )
 
-// Manager normalises keyboard input to a single direction.
+// Manager normalises keyboard/gamepad input to a single direction.
 type Manager struct {
 	current koro.Direction
 }
@@ -16,11 +16,13 @@ func NewManager() *Manager {
 	return &Manager{}
 }
 
-// Update samples the current keyboard input.
+// Update samples the current input devices.
 func (m *Manager) Update() {
-	if dir := m.keyboardDirection(); dir != koro.DirNone {
-		m.current = dir
+	dir := m.keyboardDirection()
+	if dir == koro.DirNone {
+		dir = m.gamepadDirection()
 	}
+	m.current = dir
 }
 
 // Direction returns the latest requested direction.
@@ -41,4 +43,23 @@ func (m *Manager) keyboardDirection() koro.Direction {
 	default:
 		return koro.DirNone
 	}
+}
+
+func (m *Manager) gamepadDirection() koro.Direction {
+	for _, id := range ebiten.GamepadIDs() {
+		if !ebiten.IsStandardGamepadLayoutAvailable(id) {
+			continue
+		}
+		switch {
+		case ebiten.IsStandardGamepadButtonPressed(id, ebiten.StandardGamepadButtonLeftLeft):
+			return koro.DirLeft
+		case ebiten.IsStandardGamepadButtonPressed(id, ebiten.StandardGamepadButtonLeftRight):
+			return koro.DirRight
+		case ebiten.IsStandardGamepadButtonPressed(id, ebiten.StandardGamepadButtonLeftTop):
+			return koro.DirUp
+		case ebiten.IsStandardGamepadButtonPressed(id, ebiten.StandardGamepadButtonLeftBottom):
+			return koro.DirDown
+		}
+	}
+	return koro.DirNone
 }

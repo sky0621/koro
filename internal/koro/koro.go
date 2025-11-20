@@ -34,11 +34,11 @@ func (d Direction) Delta() (int, int) {
 
 // Koro represents the controllable hero.
 type Koro struct {
-	X, Y  float64
-	Size  float64
-	Speed float64
-	dir   Direction
-	next  Direction
+	X, Y   float64
+	Size   float64
+	Speed  float64
+	dir    Direction
+	intent Direction
 }
 
 // New returns a configured Koro instance positioned at x,y with the provided size.
@@ -48,21 +48,21 @@ func New(x, y, size float64) *Koro {
 		Y:    y,
 		Size: size,
 		// Speed is tuned for smooth per-frame pixel movement.
-		Speed: 1.5,
-		dir:   DirNone,
-		next:  DirNone,
+		Speed:  1.5,
+		dir:    DirNone,
+		intent: DirNone,
 	}
 }
 
-// QueueDirection stores the next intended direction from player input.
-func (k *Koro) QueueDirection(dir Direction) {
-	k.next = dir
+// SetIntentDirection stores the desired direction from player input.
+func (k *Koro) SetIntentDirection(dir Direction) {
+	k.intent = dir
 }
 
 // Update moves Koro according to queued directions and level collisions.
 func (k *Koro) Update(l *level.Level) {
 	tileSize := float64(l.TileSize)
-	k.tryApplyQueuedDirection(l, tileSize)
+	k.applyIntent(l, tileSize)
 
 	if k.dir == DirNone {
 		return
@@ -80,22 +80,22 @@ func (k *Koro) Update(l *level.Level) {
 	k.dir = DirNone
 }
 
-func (k *Koro) tryApplyQueuedDirection(l *level.Level, tileSize float64) {
-	if k.next == DirNone {
+func (k *Koro) applyIntent(l *level.Level, tileSize float64) {
+	if k.intent == DirNone {
+		k.dir = DirNone
 		return
 	}
 
-	if !k.isAlignedFor(k.next, tileSize) {
+	if k.intent == k.dir {
 		return
 	}
 
-	if !k.canMove(l, k.next) {
+	if !k.canMove(l, k.intent) {
 		return
 	}
 
-	k.snapToGrid(tileSize)
-	k.dir = k.next
-	k.next = DirNone
+	k.snapAxisForDirection(tileSize, k.intent)
+	k.dir = k.intent
 }
 
 func (k *Koro) canMove(l *level.Level, dir Direction) bool {
@@ -110,29 +110,12 @@ func (k *Koro) CanMove(l *level.Level, dir Direction) bool {
 	return k.canMove(l, dir)
 }
 
-func (k *Koro) isAlignedFor(dir Direction, tileSize float64) bool {
-	const minThreshold = 0.8
-	threshold := math.Max(minThreshold, tileSize*0.2)
-	if threshold > tileSize/2 {
-		threshold = tileSize / 2
-	}
-
-	remX := math.Mod(k.X, tileSize)
-	remY := math.Mod(k.Y, tileSize)
-	if remX < 0 {
-		remX += tileSize
-	}
-	if remY < 0 {
-		remY += tileSize
-	}
-
+func (k *Koro) snapAxisForDirection(tileSize float64, dir Direction) {
 	switch dir {
 	case DirUp, DirDown:
-		return remX < threshold || tileSize-remX < threshold
+		k.X = math.Round(k.X/tileSize) * tileSize
 	case DirLeft, DirRight:
-		return remY < threshold || tileSize-remY < threshold
-	default:
-		return true
+		k.Y = math.Round(k.Y/tileSize) * tileSize
 	}
 }
 
@@ -164,7 +147,7 @@ func (k *Koro) SetPosition(x, y float64) {
 	k.X = x
 	k.Y = y
 	k.dir = DirNone
-	k.next = DirNone
+	k.intent = DirNone
 }
 
 // Center returns the current center point coordinates.

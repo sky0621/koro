@@ -12,7 +12,7 @@ Pac-Man inspired prototype built with Go + Ebiten. The current gameplay already 
 go run ./cmd/game
 ```
 
-Controls: Arrow keys only.
+Controls: Arrow keys or a gamepad D-pad.
 
 ## Mobile builds
 

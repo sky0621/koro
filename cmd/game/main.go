@@ -216,9 +216,7 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 
 func (g *Game) handleInput() {
 	g.input.Update()
-	if dir := g.input.Direction(); dir != koro.DirNone {
-		g.player.QueueDirection(dir)
-	}
+	g.player.SetIntentDirection(g.input.Direction())
 }
 
 func (g *Game) handlePelletPickup() {
