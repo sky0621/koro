@@ -11,21 +11,30 @@ import (
 )
 
 const (
-	randomChangeChance   = 0.4
-	randomChangeFrighten = 0.2
-	visitPenaltyWeight   = 5.0
+	randomChangeChance       = 0.12
+	randomChangeFrighten     = 0.35
+	randomTurnChance         = 0.35
+	randomTurnChanceScared   = 0.7
+	randomScoreJitter        = 70.0
+	visitPenaltyWeight       = 22.0
+	targetChangeChance       = 0.08
+	targetChangeChanceScared = 0.4
+	targetOverrideDuration   = 180
 )
 
 // Ghost encapsulates enemy behaviour with simple chase logic.
 type Ghost struct {
-	body            *koro.Koro
-	baseSpeed       float64
-	primaryColor    color.Color
-	frightenedTimer int
-	rng             *rand.Rand
-	spawnX          float64
-	spawnY          float64
-	visited         map[level.GridPos]int
+	body                *koro.Koro
+	baseSpeed           float64
+	primaryColor        color.Color
+	frightenedTimer     int
+	rng                 *rand.Rand
+	spawnX              float64
+	spawnY              float64
+	visited             map[level.GridPos]int
+	targetOverrideTimer int
+	overrideX           float64
+	overrideY           float64
 }
 
 // New creates a new ghost positioned at (x, y).
@@ -57,7 +66,8 @@ func (g *Ghost) Update(l *level.Level, targetX, targetY float64) {
 		g.body.SetSpeed(g.baseSpeed)
 	}
 
-	if dir := g.nextDirection(l, targetX, targetY); dir != koro.DirNone {
+	tx, ty := g.determineTarget(l, targetX, targetY)
+	if dir := g.nextDirection(l, tx, ty); dir != koro.DirNone {
 		g.body.SetIntentDirection(dir)
 	} else if current := g.body.Direction(); current != koro.DirNone {
 		g.body.SetIntentDirection(current)
@@ -139,7 +149,11 @@ func (g *Ghost) nextDirection(l *level.Level, targetX, targetY float64) koro.Dir
 
 	g.shuffleDirections(options)
 
+	randomTurn := randomTurnChance
 	if g.IsFrightened() {
+		randomTurn = randomTurnChanceScared
+	}
+	if g.rng.Float64() < randomTurn {
 		return options[g.rng.Intn(len(options))]
 	}
 
@@ -155,7 +169,7 @@ func (g *Ghost) nextDirection(l *level.Level, targetX, targetY float64) koro.Dir
 		dist := math.Hypot(targetX-nextX, targetY-nextY)
 		grid := g.gridAhead(l, dir)
 		visitScore := float64(g.visited[grid]) * visitPenaltyWeight
-		score := dist + visitScore
+		score := dist + visitScore + g.rng.Float64()*randomScoreJitter
 		if score < bestScore {
 			bestScore = score
 			bestDir = dir
@@ -213,6 +227,39 @@ func (g *Ghost) gridAhead(l *level.Level, dir koro.Direction) level.GridPos {
 	nextX := cx + float64(dx)*float64(l.TileSize)
 	nextY := cy + float64(dy)*float64(l.TileSize)
 	return l.GridForPixel(nextX, nextY)
+}
+
+func (g *Ghost) determineTarget(l *level.Level, defaultX, defaultY float64) (float64, float64) {
+	if g.targetOverrideTimer > 0 {
+		g.targetOverrideTimer--
+		return g.overrideX, g.overrideY
+	}
+
+	chance := targetChangeChance
+	if g.IsFrightened() {
+		chance = targetChangeChanceScared
+	}
+	if g.rng.Float64() < chance {
+		if tx, ty, ok := g.randomTarget(l); ok {
+			g.overrideX = tx
+			g.overrideY = ty
+			g.targetOverrideTimer = targetOverrideDuration
+			return tx, ty
+		}
+	}
+
+	return defaultX, defaultY
+}
+
+func (g *Ghost) randomTarget(l *level.Level) (float64, float64, bool) {
+	walkable := l.WalkableTiles()
+	if len(walkable) == 0 {
+		return 0, 0, false
+	}
+	pos := walkable[g.rng.Intn(len(walkable))]
+	tx := float64(pos.Col*l.TileSize) + float64(l.TileSize)/2
+	ty := float64(pos.Row*l.TileSize) + float64(l.TileSize)/2
+	return tx, ty, true
 }
 
 func oppositeDirection(dir koro.Direction) koro.Direction {
