@@ -52,6 +52,14 @@ const (
 	collisionShrinkage = 0.85
 )
 
+var (
+	colorWall        = color.NRGBA{0, 0, 80, 255}
+	colorWarp        = color.NRGBA{30, 30, 90, 255}
+	colorFloor       = color.NRGBA{10, 10, 10, 255}
+	colorPlayer      = color.RGBA{255, 255, 0, 255}
+	colorPowerPellet = color.RGBA{255, 165, 0, 255}
+)
+
 var ghostSpawnTiles = []struct {
 	col int
 	row int
@@ -131,7 +139,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawLevel(screen)
 	g.drawPellets(screen)
 	g.drawGhosts(screen)
-	render.FillRect(screen, g.player.X, g.player.Y, g.player.Size, g.player.Size, color.RGBA{255, 255, 0, 255})
+	render.DrawPlayer(screen, g.player.X, g.player.Y, g.player.Size, g.player.Direction(), colorPlayer, colorFloor)
 	g.drawHUD(screen)
 }
 
@@ -148,11 +156,11 @@ func (g *Game) drawLevel(screen *ebiten.Image) {
 			var c color.Color
 			switch g.level.TileAt(col, row) {
 			case level.TileWall:
-				c = color.NRGBA{0, 0, 80, 255}
+				c = colorWall
 			case level.TileWarp:
-				c = color.NRGBA{30, 30, 90, 255}
+				c = colorWarp
 			default:
-				c = color.NRGBA{10, 10, 10, 255}
+				c = colorFloor
 			}
 			render.FillRect(screen, x, y, tileSize, tileSize, c)
 		}
@@ -172,7 +180,7 @@ func (g *Game) drawPellets(screen *ebiten.Image) {
 				clr = color.White
 			case level.PelletPower:
 				size = tileSize * 0.5
-				clr = color.RGBA{255, 165, 0, 255}
+				clr = colorPowerPellet
 			default:
 				continue
 			}
@@ -186,7 +194,7 @@ func (g *Game) drawPellets(screen *ebiten.Image) {
 func (g *Game) drawGhosts(screen *ebiten.Image) {
 	for _, gh := range g.ghosts {
 		x, y := gh.Position()
-		render.FillRect(screen, x, y, gh.Size(), gh.Size(), gh.Color())
+		render.DrawGhost(screen, x, y, gh.Size(), gh.Color(), gh.IsFrightened())
 	}
 }
 
