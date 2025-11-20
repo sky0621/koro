@@ -153,7 +153,7 @@ func (g *Ghost) atIntersection(l *level.Level) bool {
 	tile := float64(l.TileSize)
 	centerX := float64(grid.Col)*tile + tile/2
 	centerY := float64(grid.Row)*tile + tile/2
-	const tolerance = 0.2
+	tolerance := tile * 0.3
 	return math.Abs(centerX-cx) < tolerance && math.Abs(centerY-cy) < tolerance
 }
 

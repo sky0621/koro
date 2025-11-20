@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"math/rand"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -31,6 +33,8 @@ type Game struct {
 
 	playerSpawnX float64
 	playerSpawnY float64
+	walkable     []level.GridPos
+	rng          *rand.Rand
 }
 
 type GameState int
@@ -60,14 +64,10 @@ var (
 	colorPowerPellet = color.RGBA{255, 165, 0, 255}
 )
 
-var ghostSpawnTiles = []struct {
-	col int
-	row int
-	clr color.Color
-}{
-	{7, 9, color.RGBA{255, 0, 0, 255}},
-	{6, 9, color.RGBA{0, 255, 255, 255}},
-	{8, 9, color.RGBA{255, 105, 180, 255}},
+var ghostColors = []color.Color{
+	color.RGBA{255, 0, 0, 255},
+	color.RGBA{0, 255, 255, 255},
+	color.RGBA{255, 105, 180, 255},
 }
 
 func newGame() *Game {
@@ -80,6 +80,8 @@ func newGame() *Game {
 		score:      0,
 		state:      StateReady,
 		readyTimer: readyDelayFrames,
+		walkable:   lvl.WalkableTiles(),
+		rng:        rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 	g.setupActors()
 	return g
@@ -91,11 +93,13 @@ func (g *Game) setupActors() {
 	g.playerSpawnY = 11 * g.tileSize
 	g.player = koro.New(g.playerSpawnX, g.playerSpawnY, g.tileSize)
 	g.player.SetSpeed(1.6)
-	g.ghosts = make([]*ghost.Ghost, 0, len(ghostSpawnTiles))
-	for _, spawn := range ghostSpawnTiles {
-		x := float64(spawn.col) * g.tileSize
-		y := float64(spawn.row) * g.tileSize
-		gh := ghost.New(x, y, g.tileSize, spawn.clr)
+	positions := g.randomSpawnPositions(len(ghostColors))
+	g.ghosts = make([]*ghost.Ghost, 0, len(ghostColors))
+	for i, clr := range ghostColors {
+		pos := positions[i%len(positions)]
+		x := float64(pos.Col) * g.tileSize
+		y := float64(pos.Row) * g.tileSize
+		gh := ghost.New(x, y, g.tileSize, clr)
 		g.ghosts = append(g.ghosts, gh)
 	}
 	g.powerTimer = 0
@@ -290,6 +294,7 @@ func (g *Game) resetActorPositions() {
 
 func (g *Game) resetLevel(keepScore bool) {
 	g.level = level.DefaultLevel()
+	g.walkable = g.level.WalkableTiles()
 	g.setupActors()
 	if !keepScore {
 		g.score = 0
@@ -297,6 +302,26 @@ func (g *Game) resetLevel(keepScore bool) {
 	}
 	g.state = StateReady
 	g.readyTimer = readyDelayFrames
+}
+
+func (g *Game) randomSpawnPositions(count int) []level.GridPos {
+	if len(g.walkable) == 0 {
+		return make([]level.GridPos, count)
+	}
+	indices := make([]int, len(g.walkable))
+	for i := range g.walkable {
+		indices[i] = i
+	}
+	g.rng.Shuffle(len(indices), func(i, j int) {
+		indices[i], indices[j] = indices[j], indices[i]
+	})
+
+	result := make([]level.GridPos, count)
+	for i := 0; i < count; i++ {
+		idx := indices[i%len(indices)]
+		result[i] = g.walkable[idx]
+	}
+	return result
 }
 
 func main() {

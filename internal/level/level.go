@@ -38,6 +38,7 @@ type Level struct {
 	warpTargets  map[GridPos]GridPos
 	pellets      [][]PelletType
 	totalPellets int
+	walkable     []GridPos
 }
 
 // DefaultLevel returns the built-in stage used for early development.
@@ -50,7 +51,7 @@ func DefaultLevel() *Level {
 		"#.#.###.###.#.#",
 		"#.....#.......#",
 		"###.#.#.#.#.###",
-		"W...#.....#...W",
+		"#...#.....#...#",
 		"#.#.#.###.#.#.#",
 		"#.#.#.....#.#.#",
 		"#.#.#######.#.#",
@@ -82,6 +83,7 @@ func New(layout []string, tileSize int) (*Level, error) {
 	width := len(layout[0])
 	tiles := make([][]TileType, height)
 	warpEntrances := []GridPos{}
+	walkable := []GridPos{}
 	pellets := make([][]PelletType, height)
 
 	for rowIdx, row := range layout {
@@ -98,14 +100,18 @@ func New(layout []string, tileSize int) (*Level, error) {
 			case '.':
 				tiles[rowIdx][colIdx] = TilePath
 				pellets[rowIdx][colIdx] = PelletSmall
+				walkable = append(walkable, GridPos{Col: colIdx, Row: rowIdx})
 			case 'o':
 				tiles[rowIdx][colIdx] = TilePath
 				pellets[rowIdx][colIdx] = PelletPower
+				walkable = append(walkable, GridPos{Col: colIdx, Row: rowIdx})
 			case ' ':
 				tiles[rowIdx][colIdx] = TilePath
+				walkable = append(walkable, GridPos{Col: colIdx, Row: rowIdx})
 			case 'W':
 				tiles[rowIdx][colIdx] = TileWarp
 				warpEntrances = append(warpEntrances, GridPos{Col: colIdx, Row: rowIdx})
+				walkable = append(walkable, GridPos{Col: colIdx, Row: rowIdx})
 			default:
 				return nil, fmt.Errorf("unknown tile rune %q at row %d col %d", ch, rowIdx, colIdx)
 			}
@@ -140,6 +146,7 @@ func New(layout []string, tileSize int) (*Level, error) {
 		warpTargets:  warpTargets,
 		pellets:      pellets,
 		totalPellets: totalPellets,
+		walkable:     walkable,
 	}, nil
 }
 
@@ -221,4 +228,11 @@ func (l *Level) ConsumePellet(col, row int) PelletType {
 // RemainingPellets returns the number of pellets left on the map.
 func (l *Level) RemainingPellets() int {
 	return l.totalPellets
+}
+
+// WalkableTiles returns a copy of all non-wall tile positions.
+func (l *Level) WalkableTiles() []GridPos {
+	out := make([]GridPos, len(l.walkable))
+	copy(out, l.walkable)
+	return out
 }
